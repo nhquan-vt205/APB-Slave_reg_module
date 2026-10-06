@@ -1,0 +1,60 @@
+%% module : apb_reg
+%% stage  : 2 - diagram L2
+%% nguon  : doc/spec/apb_reg_spec.md
+%% mo tren: https://mermaid.live
+flowchart LR
+
+  %% ===== INPUT PORTS =====
+  pi_clk>"clk [0:0]"]
+  pi_rst>"rst_n [0:0]"]
+  pi_psel>"psel [0:0]"]
+  pi_pwdata>"pwdata [31:0]"]
+  pi_paddr>"paddr [3:0]"]
+  pi_penable>"penable [0:0]"]
+  pi_pwrite>"pwrite [0:0]"]
+
+  %% ===== OUTPUT PORTS =====
+  po_prdata(["prdata [31:0]"])
+  po_pready(["pready [0:0]"])
+
+  subgraph M_apb_reg["apb_reg"]
+    direction LR
+    n_clkrst["clk rising / rst_n async low<br/>moi thanh ghi reset ve 0"]
+    blk_wr_dec["WRITE DECODE (posedge clk)<br/>wr = psel AND penable AND pwrite<br/>paddr 0,4,8,C: regN ← pwdata ; khac: giu"]
+    reg_data["reg0..3_q [31:0] x4<br/>rst = 32h0"]
+    reg_written["reg0..3_written_q [0:0] x4<br/>rst = 0 ; set 1 khi ghi ; giu 1"]
+    blk_rd_mux["READ MUX<br/>psel AND penable AND NOT pwrite<br/>addr 0,4,8,C: written ? reg : DEAD_BEEF<br/>invalid addr: 0<br/>not read access: 0"]
+    blk_pready["PREADY<br/>= 1"]
+  end
+
+  %% ===== DATA =====
+  pi_pwdata -->|"pwdata [31:0]"| blk_wr_dec
+  blk_wr_dec -->|"regN_d [31:0]"| reg_data
+  reg_data -->|"regN_q [31:0]"| blk_rd_mux
+  reg_written -->|"regN_written_q"| blk_rd_mux
+  blk_rd_mux -->|"[31:0]"| po_prdata
+  blk_pready -->|"[0:0]"| po_pready
+
+  %% ===== CONTROL =====
+  pi_psel -.-> blk_wr_dec
+  pi_penable -.-> blk_wr_dec
+  pi_pwrite -.-> blk_wr_dec
+  pi_paddr -.->|"paddr [3:0]"| blk_wr_dec
+  pi_paddr -.->|"paddr [3:0]"| blk_rd_mux
+  pi_psel -.-> blk_rd_mux
+  pi_penable -.-> blk_rd_mux
+  pi_pwrite -.->|"pwrite"| blk_rd_mux
+  blk_wr_dec -.->|"wr_en, addr_dec"| reg_data
+  blk_wr_dec -.->|"wr_en, addr_dec"| reg_written
+  pi_clk -.-> n_clkrst
+  pi_rst -.-> n_clkrst
+
+  %% ===== STYLE =====
+  classDef port fill:#e8eaf6,stroke:#3949ab,color:#1a237e
+  classDef reg fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#3e2723
+  classDef blk fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+  classDef note fill:#fffde7,stroke:#f9a825,stroke-dasharray:4 3,color:#5d4037
+  class pi_clk,pi_rst,pi_psel,pi_pwdata,pi_paddr,pi_penable,pi_pwrite,po_prdata,po_pready port
+  class reg_data,reg_written reg
+  class blk_wr_dec,blk_rd_mux,blk_pready blk
+  class n_clkrst note
